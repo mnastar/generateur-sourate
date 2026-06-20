@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Générateur Sourate — ZemZem Léman</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#1a0a10;color:#f0e0e8;min-height:100vh;padding:20px}
+h1{color:#d47a92;font-size:1.4rem;margin-bottom:4px}
+.sub{color:#a06070;font-size:.85rem;margin-bottom:20px}
+.zone{background:#2a1020;border:1px solid #6a2040;border-radius:10px;padding:16px;margin-bottom:16px}
+.zone h2{color:#d47a92;font-size:1rem;margin-bottom:10px}
+.drop-zone{border:2px dashed #6a2040;border-radius:8px;padding:28px;text-align:center;
+  cursor:pointer;transition:.2s;color:#a06070;font-size:.9rem}
+.drop-zone:hover,.drop-zone.over{border-color:#d47a92;background:#3a1828}
+.drop-zone input{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(75px,1fr));gap:6px;margin-top:10px}
+.thumb{position:relative}
+.thumb img{width:100%;height:65px;object-fit:cover;border-radius:4px;border:1px solid #6a2040}
+.thumb .lbl{position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.75);
+  color:#fff;font-size:.62rem;padding:1px 4px;border-radius:3px}
+.thumb .rm{position:absolute;top:2px;right:2px;background:rgba(180,0,0,.8);
+  color:#fff;font-size:.6rem;padding:1px 4px;border-radius:3px;cursor:pointer}
+input[type=text],input[type=number]{background:#1a0a10;color:#f0e0e8;
+  border:1px solid #6a2040;border-radius:6px;padding:7px 10px;font-size:.9rem;width:100%}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.field label{display:block;color:#a06070;font-size:.78rem;margin-bottom:4px}
+.btn{background:#8a3050;color:#fff;border:none;border-radius:8px;
+  padding:10px 24px;font-size:.95rem;cursor:pointer;transition:.2s;margin-right:8px;margin-top:8px}
+.btn:hover{background:#b04060}
+.btn:disabled{background:#4a2030;color:#806070;cursor:not-allowed}
+.btn.dl{background:#2a5040}
+.btn.dl:hover{background:#3a7060}
+.bar-bg{background:#3a1828;border-radius:4px;height:8px;margin:8px 0}
+.bar{background:linear-gradient(90deg,#8a3050,#d47a92);height:8px;border-radius:4px;transition:width .3s}
+.log{font-family:monospace;font-size:.76rem;color:#c09090;max-height:220px;overflow-y:auto;margin-top:8px}
+.log div{padding:1px 0}
+.log .ok{color:#6dbb8a}
+.log .err{color:#e07060}
+.log .warn{color:#e0b060}
+.preview{background:#0d0508;border:1px solid #6a2040;border-radius:8px;
+  padding:12px;margin-top:12px;max-height:300px;overflow-y:auto;font-size:.78rem;font-family:monospace;color:#c0a0b0}
+.stat{display:inline-block;background:#3a1828;border-radius:5px;padding:4px 10px;margin:3px;font-size:.82rem}
+.stat span{color:#d47a92;font-weight:bold}
+</style>
+</head>
+<body>
+<h1>⚡ Générateur Sourate — ZemZem Léman</h1>
+<p class="sub">Glisse les JPG du livre → génère le HTML complet de la sourate automatiquement</p>
+
+<!-- CLÉ API -->
+<div class="zone">
+  <h2>🔑 Clé API Google Gemini <small style="color:#a06070;font-weight:normal;font-size:.8rem">— gratuite sur aistudio.google.com</small></h2>
+  <div class="field">
+    <input type="password" id="apiKey" placeholder="Colle ta clé ici (AIza...)">
+  </div>
+</div>
+
+<!-- IMAGES -->
+<div class="zone">
+  <h2>① Images JPG du livre (ordre automatique)</h2>
+  <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()"
+       ondragover="dv(event,'over')" ondragleave="dv(event,'')" ondrop="dp(event)">
+    <input type="file" id="fi" multiple accept="image/*" onchange="loadFiles(this.files)">
+    📁 Glisse toutes les images JPG ici · ordre automatique par numéro
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- INFOS SOURATE — extraites automatiquement, modifiables -->
+<div class="zone">
+  <h2>② Informations de la sourate <small style="color:#a06070;font-weight:normal;font-size:.8rem">— extraites automatiquement de la 1ère image · modifiables si besoin</small></h2>
+  <div id="infoStatus" style="color:#a06070;font-size:.82rem;margin-bottom:10px">⏳ Seront extraites lors de la génération</div>
+  <div class="row">
+    <div class="field"><label>Numéro</label><input type="number" id="sNum" value="" min="1" max="114" placeholder="auto"></div>
+    <div class="field"><label>Nombre de versets total</label><input type="number" id="sTotal" value="" min="1" placeholder="auto"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Nom arabe</label><input type="text" id="sAr" value="" placeholder="auto"></div>
+    <div class="field"><label>Translittération</label><input type="text" id="sPhon" value="" placeholder="auto"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Nom français</label><input type="text" id="sFr" value="" placeholder="auto"></div>
+    <div class="field"><label>Référence</label><input type="text" id="sRef" value="" placeholder="auto"></div>
+  </div>
+</div>
+
+<!-- LANCER -->
+<div class="zone">
+  <h2>③ Génération</h2>
+  <button class="btn" id="btnGo" onclick="generate()">⚡ Générer la sourate</button>
+  <button class="btn dl" id="btnDl" onclick="download()" style="display:none">⬇ Télécharger le HTML</button>
+  <div id="prog" style="display:none;margin-top:12px">
+    <div class="bar-bg"><div class="bar" id="bar" style="width:0%"></div></div>
+    <div id="ptxt" style="font-size:.82rem;color:#a06070;margin-top:4px"></div>
+    <div class="log" id="log"></div>
+  </div>
+  <div id="stats" style="margin-top:10px"></div>
+</div>
+
+<script>
+// ── État ──────────────────────────────────────────────────────
+const S = { images: [], versets: {}, finalHtml: '' };
+
+// ── Fichiers ──────────────────────────────────────────────────
+function dv(e,c){e.preventDefault();document.getElementById('dz').className='drop-zone'+(c?' '+c:'')}
+function dp(e){e.preventDefault();dv(e,'');loadFiles(e.dataTransfer.files)}
+
+function loadFiles(files){
+  Array.from(files).forEach(f=>{
+    const m=f.name.match(/\d+/g);
+    const num=m?parseInt(m[m.length-1]):999;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const b64=ev.target.result.split(',')[1];
+      if(!S.images.find(i=>i.name===f.name)){
+        S.images.push({name:f.name,num,b64,url:ev.target.result});
+        S.images.sort((a,b)=>a.num-b.num);
+        renderGrid();
+      }
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function removeImg(name){
+  S.images=S.images.filter(i=>i.name!==name);
+  renderGrid();
+}
+
+function renderGrid(){
+  document.getElementById('grid').innerHTML=S.images.map(img=>
+    `<div class="thumb">
+      <img src="${img.url}">
+      <div class="lbl">Img ${img.num}</div>
+      <div class="rm" onclick="removeImg('${img.name}')">✕</div>
+    </div>`
+  ).join('');
+}
+
+// ── Extraction API ────────────────────────────────────────────
+const PROMPT_INFO=`Tu es un OCR précis. Regarde uniquement l'en-tête de cette page (titre de la sourate).
+Extrait ces informations et retourne UNIQUEMENT ce JSON (pas de markdown, pas de texte autour) :
+{
+  "num": 5,
+  "total_versets": 120,
+  "nom_arabe": "سُورَةُ الْمَائِدَةِ",
+  "translitteration": "Sourat-ou Âl-Mâyidat-i",
+  "nom_francais": "La table",
+  "reference": "le nom de la sourate se réfère à S5-V112"
+}
+Si une info n'est pas visible, mets null.`;
+
+async function extractInfos(b64){
+  const key=document.getElementById('apiKey').value.trim();
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({contents:[{parts:[
+      {inline_data:{mime_type:'image/jpeg',data:b64}},
+      {text:PROMPT_INFO}
+    ]}]})
+  });
+  if(!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
+  const d=await r.json();
+  let raw=d.candidates[0].content.parts[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+  return JSON.parse(raw);
+}
+
+function fillInfos(info){
+  if(info.num) document.getElementById('sNum').value=info.num;
+  if(info.total_versets) document.getElementById('sTotal').value=info.total_versets;
+  if(info.nom_arabe) document.getElementById('sAr').value=info.nom_arabe;
+  if(info.translitteration) document.getElementById('sPhon').value=info.translitteration;
+  if(info.nom_francais) document.getElementById('sFr').value=info.nom_francais;
+  if(info.reference) document.getElementById('sRef').value=info.reference;
+  document.getElementById('infoStatus').innerHTML=
+    `✓ Infos extraites automatiquement — <span style="color:#d47a92">modifie si besoin</span>`;
+  document.getElementById('infoStatus').style.color='#6dbb8a';
+}
+
+const PROMPT=`Tu es un OCR de haute precision pour un livre de traduction coranique (ZemZem Leman).
+
+Extrait TOUS les versets presents dans cette image avec leurs glossaires complets.
+
+REGLES STRICTES :
+- Texte en GRAS dans le livre → marque avec <G>texte</G>
+- Texte en italique normal non gras → laisse sans balise
+- Copie EXACTEMENT chaque caractere : accents, apostrophes, barres obliques /, tirets, majuscules
+- N invente rien, ne complete pas, ne resume pas
+- Inclus les versets partiels qui debordent sur une autre page
+- Le texte arabe a droite : ignore-le
+- Ne saute AUCUN item du glossaire meme s il est long
+
+FORMAT JSON strict, aucun texte avant ou apres, aucun markdown :
+{
+  "versets": [
+    {
+      "num": 1,
+      "arabe": "texte arabe du verset si visible",
+      "items": [
+        {
+          "terme": "terme phonetique exact",
+          "expl": "(<G>traduction en gras</G> : commentaire non gras)"
+        }
+      ]
+    }
+  ]
+}`;
+
+async function callAPI(b64){
+  const key=document.getElementById('apiKey').value.trim();
+  if(!key){throw new Error('Clé API manquante !');}
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      contents:[{parts:[
+        {inline_data:{mime_type:'image/jpeg',data:b64}},
+        {text:PROMPT}
+      ]}],
+      generationConfig:{maxOutputTokens:8000,temperature:0}
+    })
+  });
+  if(!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
+  const d=await r.json();
+  let raw=d.candidates[0].content.parts[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+  return JSON.parse(raw);
+}
+
+// ── Génération ────────────────────────────────────────────────
+function log(msg,cls=''){
+  const l=document.getElementById('log');
+  const d=document.createElement('div');
+  d.className=cls; d.textContent=msg;
+  l.appendChild(d); l.scrollTop=l.scrollHeight;
+}
+
+async function generate(){
+  if(!S.images.length){alert('Charge d\'abord les images !');return;}
+  document.getElementById('btnGo').disabled=true;
+  document.getElementById('btnDl').style.display='none';
+  document.getElementById('prog').style.display='block';
+  document.getElementById('log').innerHTML='';
+  S.versets={};
+
+  const total=S.images.length;
+
+  // Étape 0 : extraire les infos sourate depuis la 1ère image
+  log('→ Extraction des infos sourate depuis la 1ère image...');
+  try{
+    const info=await extractInfos(S.images[0].b64);
+    fillInfos(info);
+    log(`  ✓ Sourate ${info.num} — ${info.nom_francais} (${info.total_versets} versets)`,'ok');
+  }catch(e){
+    log(`  ⚠ Infos non extraites (${e.message}) — remplis manuellement`,'warn');
+  }
+  for(let i=0;i<total;i++){
+    const img=S.images[i];
+    document.getElementById('bar').style.width=`${Math.round(i/total*100)}%`;
+    document.getElementById('ptxt').textContent=`Image ${i+1}/${total} — ${img.name}`;
+    log(`→ ${img.name}...`);
+    try{
+      const data=await callAPI(img.b64);
+      let n=0;
+      for(const v of data.versets||[]){
+        const num=v.num;
+        if(!S.versets[num]) S.versets[num]={num,arabe:v.arabe||'',items:[]};
+        else if(v.arabe && !S.versets[num].arabe) S.versets[num].arabe=v.arabe;
+        const existing=new Set(S.versets[num].items.map(x=>x.terme));
+        for(const item of v.items||[]){
+          if(item.terme && !existing.has(item.terme)){
+            S.versets[num].items.push(item);
+            existing.add(item.terme);
+            n++;
+          }
+        }
+      }
+      log(`  ✓ ${data.versets?.length||0} versets, ${n} items`, 'ok');
+    }catch(e){
+      log(`  ❌ ${e.message}`,'err');
+    }
+  }
+
+  document.getElementById('bar').style.width='100%';
+  document.getElementById('ptxt').textContent='Construction du HTML...';
+  log('Construction du HTML final...');
+
+  buildHtml();
+  document.getElementById('btnGo').disabled=false;
+  document.getElementById('btnDl').style.display='inline-block';
+
+  const nv=Object.keys(S.versets).length;
+  const ni=Object.values(S.versets).reduce((a,v)=>a+v.items.length,0);
+  document.getElementById('stats').innerHTML=
+    `<div class="stat">Versets : <span>${nv}</span></div>
+     <div class="stat">Items glossaire : <span>${ni}</span></div>
+     <div class="stat">Taille HTML : <span>${Math.round(S.finalHtml.length/1024)} KB</span></div>`;
+  log(`✓ HTML généré — ${nv} versets, ${ni} items`, 'ok');
+}
+
+// ── Construction HTML ─────────────────────────────────────────
+function explToHtml(expl){
+  return (expl||'').replace(/<G>(.*?)<\/G>/gs,'<strong>$1</strong>');
+}
+
+function buildCartes(){
+  const nums=Object.keys(S.versets).map(Number).sort((a,b)=>a-b);
+  return nums.map(num=>{
+    const v=S.versets[num];
+    // Construire glos items
+    const glosHtml=v.items.map(item=>{
+      const expl=explToHtml(item.expl);
+      return `        <div class="glos-item"><div class="glos-terme">${esc(item.terme)}</div><div class="glos-expl">${expl}</div></div>`;
+    }).join('\n');
+    // Construire v-trad depuis les <strong>
+    const parser=new DOMParser();
+    const tmpDoc=parser.parseFromString(`<div>${glosHtml}</div>`,'text/html');
+    const fragments=[...tmpDoc.querySelectorAll('strong')].map(s=>s.textContent.trim()).filter(Boolean);
+    const vtrad=fragments.join(' · ');
+    return `<div class="carte" id="v${num}">
+    <div class="v-header">
+      <div class="v-num">${num}</div>
+      <button class="v-toggle" onclick="toggle('d${num}',this)">Voir l'analyse ▾</button>
+    </div>
+    <div class="v-corps">
+      <div class="v-arabe">${esc(v.arabe)}</div>
+      <div class="sep-or"></div>
+      <div class="v-trad">${esc(vtrad)}</div>
+    </div>
+    <div class="v-detail" id="d${num}">
+      <div class="onglets">
+        <button class="ong-btn actif" onclick="onglet(this,'g${num}')">Glossaire des termes</button>
+        <button class="ong-btn" onclick="onglet(this,'c${num}')">Commentaire</button>
+      </div>
+      <div class="ong-content actif" id="g${num}">
+${glosHtml}
+      </div>
+      <div class="ong-content" id="c${num}"></div>
+    </div>
+  </div>`;
+  }).join('\n\n');
+}
+
+function buildNav(){
+  const nums=Object.keys(S.versets).map(Number).sort((a,b)=>a-b);
+  return nums.map(n=>`    <button class="nb" id="nb${n}" onclick="goV(${n})">${n}</button>`).join('\n');
+}
+
+function esc(s){
+  if(!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function buildHtml(){
+  const num=document.getElementById('sNum').value;
+  const total=document.getElementById('sTotal').value;
+  const ar=document.getElementById('sAr').value;
+  const phon=document.getElementById('sPhon').value;
+  const fr=document.getElementById('sFr').value;
+  const ref=document.getElementById('sRef').value;
+
+  const cartes=buildCartes();
+  const nav=buildNav();
+  const nv=Object.keys(S.versets).length;
+  const vMin=Math.min(...Object.keys(S.versets).map(Number));
+  const vMax=Math.max(...Object.keys(S.versets).map(Number));
+
+  S.finalHtml=`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sourate ${num} — ${esc(fr)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--rose-nuit:#8a3a52;--rose-fonce:#b5566e;--rose-med:#d47a92;--rose-clair:#f7dde5;
+--rose-pale:#fdf0f3;--rose-vapeur:#fff8fa;--or:#b5566e;--or-clair:#d47a92;--or-pale:#f7dde5;
+--texte:#2a1a1e;--texte-doux:#5a3040;--blanc:#ffffff;--ombre:rgba(138,58,82,.15)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Lora',Georgia,serif;background:var(--rose-pale);color:var(--texte);min-height:100vh;overflow-x:hidden;font-size:17px;line-height:1.9}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 40% at 10% 20%,rgba(176,80,112,.07) 0%,transparent 70%),radial-gradient(ellipse 50% 60% at 90% 80%,rgba(196,154,108,.08) 0%,transparent 70%);pointer-events:none;z-index:0}
+#leftnav{position:fixed;left:0;top:0;width:50px;height:100vh;background:linear-gradient(180deg,var(--rose-nuit),var(--rose-fonce));box-shadow:3px 0 16px rgba(138,58,82,.25);z-index:200}
+#navscroll{position:absolute;top:8px;bottom:8px;left:0;right:0;overflow-y:scroll;scrollbar-width:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0}
+#navscroll::-webkit-scrollbar{display:none}
+.nb{width:34px;height:34px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.07);color:rgba(255,255,255,.85);font-size:11px;font-weight:700;font-family:'Noto Sans',sans-serif;cursor:pointer;flex-shrink:0;transition:.2s}
+.nb:hover,.nb.actif{background:#fff;color:var(--rose-nuit);border-color:#fff}
+.contenu{margin-left:56px;position:relative;z-index:1}
+.entete{text-align:center;padding:52px 20px 40px;background:linear-gradient(180deg,#fff 0%,var(--rose-pale) 100%);border-bottom:2px solid var(--rose-med);position:relative}
+.entete::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--or),var(--or-clair),var(--or),transparent)}
+.bande-or{position:absolute;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--or),var(--or-clair),var(--or),transparent)}
+.arabe-titre{font-family:'Amiri',serif;font-size:clamp(2.2rem,7vw,3.8rem);color:var(--rose-nuit);line-height:1.4;margin-bottom:8px;direction:rtl}
+.translitt{font-family:'Lora',serif;font-style:italic;font-size:1.1rem;color:var(--texte-doux);margin-bottom:6px}
+.titre-fr{font-family:'Lora',serif;font-size:clamp(1.5rem,4vw,2.1rem);font-weight:600;color:var(--texte);margin-bottom:20px}
+.badge{background:var(--blanc);border:1px solid var(--rose-med);border-radius:12px;padding:5px 16px;color:var(--texte-doux);font-size:11.5px;font-family:'Lora',serif;margin:3px}
+.btn-g{background:var(--rose-fonce);color:var(--blanc);border:none;border-radius:25px;padding:10px 26px;font-family:'Lora',serif;font-size:13px;cursor:pointer;transition:all .3s;box-shadow:0 4px 15px var(--ombre);margin:4px}
+.btn-g:hover{background:var(--rose-nuit);transform:translateY(-2px)}
+.carte{background:var(--blanc);border:1px solid var(--rose-pale);border-radius:14px;overflow:hidden;margin:0 auto 20px;box-shadow:0 1px 6px rgba(181,86,110,.07);transition:border-color .2s,box-shadow .2s;max-width:65%}
+.carte:hover{border-color:var(--rose-med);box-shadow:0 4px 22px rgba(181,86,110,.12)}
+.v-header{background:#fff5f7;padding:16px 20px;border-bottom:1px solid var(--rose-pale);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.v-num{background:#fff;color:var(--rose-nuit);min-width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Lora',serif;font-weight:700;font-size:1rem;flex-shrink:0}
+.v-toggle{background:#fff;color:var(--rose-nuit);border:none;border-radius:8px;padding:7px 14px;font-size:.97rem;cursor:pointer;font-family:'Noto Sans',sans-serif;font-weight:600;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.v-toggle:hover{background:var(--rose-pale)}
+.v-corps{background:#fff;padding:20px 24px;display:flex;flex-direction:column;align-items:center;gap:12px;border-radius:12px}
+.v-arabe{font-family:'Amiri',serif;font-size:clamp(1.4rem,3.5vw,2rem);direction:rtl;text-align:center;color:var(--rose-nuit);line-height:1.9}
+.sep-or{width:70px;height:2px;background:linear-gradient(90deg,transparent,var(--or),transparent);border-radius:1px}
+.v-trad{font-family:'Lora',serif;font-style:italic;font-size:1.4rem;font-weight:700;color:var(--texte);text-align:center;line-height:1.75}
+.v-detail{display:none;border-top:2px solid var(--rose-pale)}
+.v-detail.ouvert{display:block;animation:slideD .35s ease}
+.onglets{display:flex;background:var(--rose-vapeur);border-bottom:1px solid var(--rose-pale)}
+.ong-btn{flex:1;padding:11px 10px;border:none;background:transparent;font-family:'Lora',serif;font-size:12.5px;color:var(--texte-doux);cursor:pointer;transition:all .25s;border-bottom:3px solid transparent}
+.ong-btn:hover{color:var(--rose-fonce)}
+.ong-btn.actif{color:var(--rose-nuit);font-weight:600;border-bottom-color:var(--rose-nuit);background:var(--blanc)}
+.ong-content{display:none;padding:22px 26px}
+.ong-content.actif{display:block}
+.glos-item{display:grid;grid-template-columns:200px 1fr;margin-bottom:10px;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(74,13,38,.07)}
+.glos-terme{background:var(--rose-nuit);color:var(--blanc);padding:13px 15px;font-family:'Lora',serif;font-size:1.05rem;line-height:1.6}
+.glos-expl{background:#fff;padding:16px 18px;font-family:'Lora',serif;font-size:1.18rem;line-height:1.9;color:var(--rose-nuit);text-align:justify}
+.glos-expl strong{color:var(--texte);font-weight:700}
+@keyframes slideD{from{opacity:0}to{opacity:1}}
+@media(max-width:680px){.glos-item{grid-template-columns:1fr}.glos-terme{border-bottom:1px solid var(--rose-pale)}.carte{max-width:100%}}
+footer{text-align:center;padding:30px 20px;color:var(--texte-doux);font-style:italic;font-size:.88rem}
+</style>
+</head>
+<body>
+<nav id="leftnav">
+  <div id="navscroll">
+${nav}
+  </div>
+</nav>
+<div class="contenu">
+  <div class="entete">
+    <div class="bande-or" style="top:0"></div>
+    <div class="arabe-titre">${ar}</div>
+    <div class="translitt">${esc(phon)}</div>
+    <div class="titre-fr">Sourate ${num} — ${esc(fr)}</div>
+    <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
+      <span class="badge">Versets ${vMin} — ${vMax}</span>
+      <span class="badge">${total} versets au total · ${esc(ref)}</span>
+    </div>
+    <div class="bande-or" style="bottom:0"></div>
+  </div>
+  <main style="padding:30px 20px">
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:26px">
+      <button class="btn-g" onclick="toutOuvrir()">Tout ouvrir ▾</button>
+      <button class="btn-g" onclick="toutFermer()">Tout fermer ▴</button>
+    </div>
+${cartes}
+  </main>
+  <footer>Mon étude du Coran — Oum Othman</footer>
+</div>
+<script>
+function goV(n){var el=document.getElementById('v'+n);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
+function toggle(id,btn){var d=document.getElementById(id);var o=d.classList.toggle('ouvert');btn.textContent=o?'Réduire ▴':"Voir l'analyse ▾"}
+function onglet(btn,cId){var b=btn.closest('.onglets');var dt=b.closest('.v-detail');b.querySelectorAll('.ong-btn').forEach(x=>x.classList.remove('actif'));dt.querySelectorAll('.ong-content').forEach(x=>x.classList.remove('actif'));btn.classList.add('actif');document.getElementById(cId).classList.add('actif')}
+function toutOuvrir(){document.querySelectorAll('.v-detail').forEach(d=>{d.classList.add('ouvert');var b=d.closest('.carte').querySelector('.v-toggle');if(b)b.textContent='Réduire ▴'})}
+function toutFermer(){document.querySelectorAll('.v-detail').forEach(d=>{d.classList.remove('ouvert');var b=d.closest('.carte').querySelector('.v-toggle');if(b)b.textContent="Voir l'analyse ▾"})}
+var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){var id=e.target.id.replace('v','');document.querySelectorAll('.nb').forEach(function(b){b.classList.remove('actif')});var btn=document.getElementById('nb'+id);if(btn){btn.classList.add('actif');btn.scrollIntoView({block:'nearest'})}}})},{threshold:0.3});
+document.querySelectorAll('.carte').forEach(function(c){obs.observe(c)});
+<\/script>
+</body>
+</html>`;
+}
+
+function download(){
+  const num=document.getElementById('sNum').value;
+  const fr=document.getElementById('sFr').value.toLowerCase().replace(/\s+/g,'_');
+  const blob=new Blob([S.finalHtml],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`sourate${num}_${fr}.html`;
+  a.click();
+}
+</script>
+</body>
+</html>
